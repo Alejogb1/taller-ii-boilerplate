@@ -11,6 +11,7 @@ def scrape_trustpilot_reviews(base_url="https://www.trustpilot.com/review/www.ai
 
     while True:
         url = f"{base_url}?page={current_page}"
+        
 
         try:
             response = requests.get(url, timeout=10)
@@ -23,6 +24,7 @@ def scrape_trustpilot_reviews(base_url="https://www.trustpilot.com/review/www.ai
             review_cards = soup.find_all('article', {'class': 'styles_reviewCard__meSdm'})
 
             if not review_cards:
+                
                 break
 
             for card in review_cards:
@@ -63,15 +65,19 @@ def scrape_trustpilot_reviews(base_url="https://www.trustpilot.com/review/www.ai
             time.sleep(1)
 
         except requests.exceptions.RequestException as e:
+            
         
             if response.status_code == 404:
+                
                 break
         
         
             break
         except Exception as e:
+            
             break
 
+    
     df = pd.DataFrame(all_reviews)
     return df
 
@@ -88,5 +94,6 @@ if __name__ == "__main__":
             output_path = "data/raw/reviews.csv"
             reviews_df.to_csv(output_path, index=False)
         else:
+            print("No reviews")
     except Exception as e:
         print(f"error: {e}")
