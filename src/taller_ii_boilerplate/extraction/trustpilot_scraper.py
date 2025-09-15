@@ -5,95 +5,109 @@ import time
 import os
 
 def scrape_trustpilot_reviews(base_url="https://www.trustpilot.com/review/www.airbnb.com"):
-    all_reviews = []
-    current_page = 1
-
+    todas_reseñas = []
+    pagina_actual = 1
+    reviews_vistos = set()
 
     while True:
-        url = f"{base_url}?page={current_page}"
-        
+        url = f"{base_url}?page={pagina_actual}"
+        nuevos_reviews_agregados = 0  
+
+        print(f"Scraping URL: {url}") 
 
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
+            
+            response = requests.get(url, timeout=15)
+
+            response.raise_for_status() 
 
             soup = BeautifulSoup(response.content, 'html.parser')
 
-        
-        
-            review_cards = soup.find_all('article', {'class': 'styles_reviewCard__meSdm'})
-
-            if not review_cards:
-                
+            
+            tarjetas_reseña = soup.find_all('div', attrs={'data-testid': 'service-review-card-v2'})
+            
+            print(f"Found {len(tarjetas_reseña)} review cards on this page.") 
+            
+            if not tarjetas_reseña:
+                print("No review cards found. Breaking loop.") 
                 break
 
-            for card in review_cards:
-            
-            
-                rating_img = card.find('div', {'class': 'styles_starRating__BhKtt'}).find('img')
-                rating = None
+            for tarjeta in tarjetas_reseña:
+                
+                rating_img = tarjeta.find('img', class_='CDS_StarRating_starRating__614d2e')
+                calificacion = None
                 if rating_img and rating_img.get('alt'):
                     try:
-                        rating_text = rating_img['alt']
-                        rating = int(rating_text.split(' ')[1])
+                        texto_calificacion = rating_img['alt']
+                        
+                        calificacion = int(texto_calificacion.split(' ')[1])
                     except (ValueError, IndexError, KeyError):
-                        rating = None
+                        print(f"Warning: Could not parse rating from alt text: {rating_img.get('alt')}") 
+                        calificacion = None
 
-            
-            
-                review_text_element = card.find('p', {'class': 'CDS_Typography_appearance-default__dd9b51 CDS_Typography_prettyStyle__dd9b51 CDS_Typography_body-l__dd9b51', 'data-relevant-review-text-typography': True})
                 
-                review_text = review_text_element.get_text(strip=True) if review_text_element else "No review text found"
+                titulo_tag = tarjeta.find('h2', attrs={'data-service-review-title-typography': 'true'})
+                titulo = titulo_tag.get_text(strip=True) if titulo_tag else 'Sin título'
 
-            
-            
-                if "See more" in review_text:
-                    review_text = review_text.replace("See more", "").strip()
+                
+                comentario_tag = tarjeta.find('p', attrs={'data-service-review-text-typography': 'true'})
+                comentario = comentario_tag.get_text(strip=True) if comentario_tag else 'Sin comentario'
 
-            
-            
-            
-                if len(review_text) < 50:
+                
+                
+                if comentario in reviews_vistos:
+                    print(f"Skipping duplicate review: {comentario[:50]}...") 
                     continue
-
-                all_reviews.append({
-                    'review_text': review_text,
-                    'rating': rating
+                
+                reviews_vistos.add(comentario)
+                todas_reseñas.append({
+                    "Título": titulo,
+                    "Comentario": comentario,
+                    "Puntaje": calificacion
                 })
+                with open("reviws.csv", "a", encoding="utf-8") as f:
+                    f.write(f"{titulo},{comentario},{calificacion}\n")
 
-            current_page += 1
-            time.sleep(1)
+                nuevos_reviews_agregados += 1
+
+            
+            pagina_actual += 1
+            time.sleep(2)  
+            
+            
+            if pagina_actual > 50:
+                print("Reached maximum page limit (50). Breaking loop.") 
+                break
 
         except requests.exceptions.RequestException as e:
+            print(f"RequestException occurred: {e}") 
             
-        
             if response.status_code == 404:
-                
+                print("404 Not Found. Breaking loop.") 
                 break
-        
-        
+            
             break
         except Exception as e:
             
+            print(f"An unexpected error occurred: {e}") 
             break
 
     
-    df = pd.DataFrame(all_reviews)
+    df = pd.DataFrame(todas_reseñas)
     return df
 
 if __name__ == "__main__":
-
 
     try:
     
         os.makedirs("data/raw", exist_ok=True)
         
-        reviews_df = scrape_trustpilot_reviews()
+        df = scrape_trustpilot_reviews()
         
-        if not reviews_df.empty:
-            output_path = "data/raw/reviews.csv"
-            reviews_df.to_csv(output_path, index=False)
+        if not df.empty:
+            df.to_csv("comentarios.csv", index=False, encoding="utf-8-sig")
+            print("Archivo guardado como comentarios.csv")
         else:
-            print("No reviews")
+            print("Sin reseñas encontradas")
     except Exception as e:
-        print(f"error: {e}")
+        print(f"Error: {e}")
